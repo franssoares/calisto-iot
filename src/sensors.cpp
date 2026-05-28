@@ -1,24 +1,44 @@
+/**
+ * MÓDULO DE SENSORES - Projeto Calisto
+ * Responsável pela leitura de vibração (MPU9250) e temperatura (MAX6675)
+ * 
+ * Sensor de Vibração: MPU9250_asukiaaa
+ * - Acelerômetro 9-eixos (X, Y, Z) com giroscópio integrado
+ * - Comunicação: I2C (Wire)
+ * - Resolução: 16-bit
+ * - Retorna dados já em g's (gravitação)
+ * - Biblioteca: https://github.com/asukiaaa/MPU9250_asukiaaa
+ * 
+ * Sensor de Temperatura: MAX6675 + Termopar Tipo K
+ * - Comunicação: SPI
+ * - Resolução: 0.25°C
+ * - Faixa: 0-1024°C
+ */
+
 #include "sensors.h"
 #include "config.h"
 #include <Wire.h>
-#include <Adafruit_MPU6050.h>
-#include <Adafruit_Sensor.h>
+#include <MPU9250_asukiaaa.h>
 #include <max6675.h>
 
 // Instâncias locais (não poluem o escopo global)
-Adafruit_MPU6050 mpu;
+MPU9250_asukiaaa mpu;  // Instância do MPU9250 via biblioteca asukiaaa
 MAX6675 thermocouple(THERMO_SCK, THERMO_CS, THERMO_SO);
 
+/**
+ * Inicializa todos os sensores
+ * - MPU9250: Inicia o acelerômetro via I2C
+ * - MAX6675: Prepara o módulo SPI para leitura de termopar
+ */
 void setupSensors() {
-  if (!mpu.begin()) {
-    Serial.println("[ERRO] MPU6050 nao encontrado!");
-    while (1) delay(10); // Trava o sistema se falhar
-  }
-  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
-  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
-  Serial.println("[OK] MPU6050 Configurado.");
+  mpu.beginAccel();  // Ativa o acelerômetro do MPU9250
+  Serial.println("[OK] MPU9250_asukiaaa Configurado com sucesso.");
 }
 
+/**
+ * Lê a temperatura do termopar via MAX6675
+ * @return Temperatura em °C (ou 0.0 se falha na leitura)
+ */
 float getTemperature() {
   float tempC = thermocouple.readCelsius();
   if (isnan(tempC)) {
@@ -28,17 +48,28 @@ float getTemperature() {
   return tempC;
 }
 
+/**
+ * Calcula o RMS (Root Mean Square) de vibração em cada eixo
+ * Algoritmo:
+ *   1. Coleta NUM_AMOSTRAS leituras do MPU9250
+ *   2. Calcula a média (remove nível DC - gravidade e inclinação)
+ *   3. Retorna o RMS por referência para cada eixo (X, Y, Z)
+ * 
+ * Parâmetros:
+ *   rmsX, rmsY, rmsZ: Referências para armazenar os resultados em g's
+ * 
+ * Nota: MPU9250_asukiaaa já retorna os dados em g's (gravitação)
+ */
 void getVibrationRMS(float &rmsX, float &rmsY, float &rmsZ) {
   float bufferX[NUM_AMOSTRAS], bufferY[NUM_AMOSTRAS], bufferZ[NUM_AMOSTRAS];
   float sumX = 0, sumY = 0, sumZ = 0;
-  sensors_event_t a, g, temp_mpu;
 
-  // Passo A: Coletar e somar
+  // Passo A: Coletar NUM_AMOSTRAS leituras e acumular
   for (int i = 0; i < NUM_AMOSTRAS; i++) {
-    mpu.getEvent(&a, &g, &temp_mpu);
-    bufferX[i] = a.acceleration.x / 9.81;
-    bufferY[i] = a.acceleration.y / 9.81;
-    bufferZ[i] = a.acceleration.z / 9.81;
+    mpu.accelUpdate();  // Atualiza os dados do acelerômetro via I2C
+    bufferX[i] = mpu.accelX();  // Retorna valor em g (já normalizado)
+    bufferY[i] = mpu.accelY();
+    bufferZ[i] = mpu.accelZ();
 
     sumX += bufferX[i];
     sumY += bufferY[i];
