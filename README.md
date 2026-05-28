@@ -6,19 +6,29 @@
 
 **Instituição:** Universidade Federal do Rio Grande do Norte (UFRN) — Instituto Metrópole Digital (IMD)  
 **Local de Implementação:** NPITI  
-**Equipe de Desenvolvimento:** Franklin Soares, Hebert Franla, Francisco Matheus
+**Equipe de Desenvolvimento:** Franklin Soares, Hebert França, Francisco Matheus
 
 ---
 
 ## Sumário
 
-1. [Visão Geral](#visão-geral)
-2. [Matriz de Requisitos](#matriz-de-requisitos)
-3. [Arquitetura e Hardware](#arquitetura-e-hardware)
-4. [Pilha de Protocolos e Comunicação](#pilha-de-protocolos-e-comunicação)
-5. [Processamento de Sinais e Cálculo de Vibração](#processamento-de-sinais-e-cálculo-de-vibração)
-6. [Estrutura de Nuvem e Alertas](#estrutura-de-nuvem-e-alertas)
-7. [Planejamento de Execução](#planejamento-de-execução)
+- [Projeto Calisto](#projeto-calisto)
+    - [Sistema de Monitoramento de Condensadores de Ar Condicionado via IoT](#sistema-de-monitoramento-de-condensadores-de-ar-condicionado-via-iot)
+    - [Sumário](#sumário)
+    - [Visão Geral](#visão-geral)
+    - [Matriz de Requisitos](#matriz-de-requisitos)
+    - [Arquitetura e Hardware](#arquitetura-e-hardware)
+    - [Pilha de Protocolos e Comunicação](#pilha-de-protocolos-e-comunicação)
+    - [Processamento de Sinais e Telemetria (Versão MVP)](#processamento-de-sinais-e-telemetria-versão-mvp)
+        - [5.1. Cálculo do RMS Dinâmico (Remoção da Gravidade)](#51-cálculo-do-rms-dinâmico-remoção-da-gravidade)
+        - [5.2. Delegação Lógica para a Nuvem (Adafruit IO)](#52-delegação-lógica-para-a-nuvem-adafruit-io)
+    - [Estrutura de Nuvem e Alertas](#estrutura-de-nuvem-e-alertas)
+        - [Feeds Adafruit IO](#feeds-adafruit-io)
+        - [Regras de Alerta (Actions)](#regras-de-alerta-actions)
+    - [Planejamento de Execução (Foco em Implantação Rápida)](#planejamento-de-execução-foco-em-implantação-rápida)
+        - [Fase 1 — Prototipagem Básica (Bench Test)](#fase-1--prototipagem-básica-bench-test)
+        - [Fase 2 — Integração Cloud e Lógica de Alertas](#fase-2--integração-cloud-e-lógica-de-alertas)
+        - [Fase 3 — Implantação Física (NPITI)](#fase-3--implantação-física-npiti)
 
 ---
 
@@ -32,14 +42,14 @@ Esses dados são cruciais para identificar anomalias operacionais — como desga
 
 ## Matriz de Requisitos
 
-| ID    | Requisito           | Descrição                                                                                                                            | Status      |
-| ----- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
-| RF01  | Leitura de Sensores | Coleta de vibração (MPU6050) e temperatura (MAX6675 + Termopar Tipo K)                                                               | ✅ Atendido |
-| RF02  | Processamento Local | Pré-processamento no microcontrolador: remoção de nível DC, cálculo de RMS dinâmico e FFT com amostragem por interrupção de hardware | ✅ Atendido |
-| RF03  | Conexão e Envio     | Conexão via Wi-Fi e transmissão padronizada para a nuvem utilizando MQTT sobre TCP/IP                                                | ✅ Atendido |
-| RF04  | Dashboards          | Interface gráfica em tempo real utilizando a plataforma Adafruit IO                                                                  | ✅ Atendido |
-| RF05  | Emissão de Alertas  | Sistema automatizado de notificações por e-mail para valores anômalos, com gate de estado para distinção compressor ligado/desligado | ✅ Atendido |
-| RNF01 | Hardware Específico | Utilização do microcontrolador ESP32 como núcleo de processamento                                                                    | ✅ Atendido |
+| ID    | Requisito           | Descrição                                                                                                                               | Status      |
+| ----- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| RF01  | Leitura de Sensores | Coleta de vibração (MPU9250) e temperatura (MAX6675 + Termopar Tipo K)                                                                  | ✅ Atendido |
+| RF02  | Processamento Local | Pré-processamento no microcontrolador: remoção de nível DC e cálculo de RMS dinâmico por janela de amostras                             | ✅ Atendido |
+| RF03  | Conexão e Envio     | Conexão via Wi-Fi e transmissão padronizada para a nuvem utilizando MQTT sobre TCP/IP                                                   | ✅ Atendido |
+| RF04  | Dashboards          | Interface gráfica em tempo real utilizando a plataforma Adafruit IO                                                                     | ✅ Atendido |
+| RF05  | Emissão de Alertas  | Sistema automatizado de notificações por e-mail para valores anômalos, com regra híbrida de temperatura e vibração configurada na nuvem | ✅ Atendido |
+| RNF01 | Hardware Específico | Utilização do microcontrolador ESP32 como núcleo de processamento                                                                       | ✅ Atendido |
 
 ---
 
@@ -50,7 +60,7 @@ A arquitetura foi projetada com foco em **modularidade, baixo custo e estabilida
 | Componente                  | Descrição                                                                                              |
 | --------------------------- | ------------------------------------------------------------------------------------------------------ |
 | **Microcontrolador (Core)** | ESP32 — processamento, conectividade nativa e hospedagem do Access Point                               |
-| **Sensor de Vibração**      | MPU6050 — acelerômetro/giroscópio via I2C; leitura de frequência e amplitude do chassi                 |
+| **Sensor de Vibração**      | MPU9250 (lib: MPU9250_asukiaaa) — acelerômetro/giroscópio 9-eixos via I2C; leitura precisa de vibração |
 | **Sensor de Temperatura**   | Módulo MAX6675 + Termopar Tipo K — comunicação SPI, alta robustez industrial para tubulação/compressor |
 | **Alimentação**             | Fonte DC 5V da rede local com regulador para 3.3V — operação sem dependência de baterias               |
 
@@ -83,103 +93,50 @@ O fluxo de comunicação do condensador até a nuvem é mapeado no **Modelo TCP/
 
 ---
 
-## Processamento de Sinais e Cálculo de Vibração
+## Processamento de Sinais e Telemetria (Versão MVP)
 
-Esta seção detalha as decisões de engenharia de firmware necessárias para garantir que os dados de vibração transmitidos sejam **fisicamente significativos e confiáveis**. Três problemas críticos foram identificados e endereçados.
+Nesta etapa de Produto Mínimo Viável, a arquitetura de firmware foi simplificada para acelerar a implantação no NPITI. O ESP32 atua estritamente como um **nó de telemetria**, sem processar regras lógicas de estado ou análises de frequência (FFT).
 
----
-
-### 1. Remoção do Nível DC (Gravidade) antes do RMS
-
-**O problema:** O MPU6050 mede aceleração total, que inclui a componente estática da gravidade (≈ 1g = 9,81 m/s²). Dependendo da orientação de montagem do sensor, a gravidade domina qualquer eixo e mascara completamente a componente de vibração real. Aplicar o RMS diretamente no valor bruto produz um número sem significado preditivo.
-
-**A solução — RMS Dinâmico (equivalente ao Desvio Padrão):**
-
-Dentro de cada janela de amostragem de N leituras, o processamento segue três etapas:
-
-**Etapa 1 — Calcule a média da janela** (representa a componente estática: gravidade + inclinação do eixo):
-
-$$\bar{x} = \frac{1}{N} \sum_{i=1}^{N} x_i$$
-
-**Etapa 2 — Subtraia a média de cada leitura**, isolando apenas a componente dinâmica (a vibração real):
-
-$$x_{\text{dinâmico}_i} = x_i - \bar{x}$$
-
-**Etapa 3 — Aplique o RMS somente na componente dinâmica:**
-
-$$X_{\text{rms}} = \sqrt{\frac{1}{N} \sum_{i=1}^{N} (x_i - \bar{x})^2}$$
-
-> **Nota estatística:** Esta operação é matematicamente equivalente ao **desvio padrão** do sinal na janela de tempo — uma medida direta da energia de vibração, livre da gravidade.
-
-**Pipeline de dados atualizado:**
-
-```
-Leituras brutas (I2C) → Buffer (janela N) → Subtração da média → RMS dinâmico → MQTT
-```
+O processamento local foca apenas na extração da **energia de vibração bruta** para envio.
 
 ---
 
-### 2. Gate de Estado para Baseline e Alertas (Ciclos do Compressor)
+### 5.1. Cálculo do RMS Dinâmico (Remoção da Gravidade)
 
-**O problema:** Ar-condicionado não opera em regime contínuo. O compressor liga e desliga conforme o termostato atua, alternando entre dois estados com assinaturas de vibração completamente distintas: compressor ativo (vibração alta) e ventilador apenas ou inativo (vibração baixa/zero). Uma baseline calculada sobre 7 dias corridos será puxada para baixo pelos períodos de inatividade, tornando o limiar de alerta impreciso.
+O único pré-processamento necessário no microcontrolador é a remoção da aceleração da gravidade (≈ 1g) lida pelo MPU9250, isolando a vibração mecânica do condensador.
 
-**A solução — Gate Lógico de Estado:**
+O algoritmo roda diretamente no `loop()` principal, de forma **blocante e simples**:
 
-Antes de alimentar a baseline histórica ou avaliar qualquer regra de severidade, o firmware (ou a lógica na nuvem) deve confirmar o estado operacional do equipamento.
+1. O ESP32 coleta uma **janela pequena de amostras** (ex: 100 leituras com um pequeno `delay()` entre elas).
+2. Calcula-se a **média** dessas 100 leituras (que representará a componente estática e a inclinação do eixo).
+3. **Subtrai-se a média** de cada leitura e calcula-se o **RMS** (_Root Mean Square_) do resultado.
+4. O valor final (**RMS dinâmico em g**) representa a intensidade total da vibração e é enviado à nuvem.
+
+O pipeline de dados resultante é:
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  Leitura do ciclo:  RMS_dinâmico  e  Temperatura (MAX6675)      │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-              ┌──────────▼──────────┐
-              │  RMS > limiar_min   │   (ex: 0.05 g)
-              │  OU                 │
-              │  Temp > limiar_min  │   (ex: 35°C)
-              └──────────┬──────────┘
-               NÃO       │       SIM
-                │        │        │
-                ▼        │        ▼
-         Descarta:        │   Alimenta baseline
-         compressor       │   Avalia severidade
-         desligado        │   Dispara alertas
+Leituras brutas (I2C) → Buffer de 100 amostras → Subtração da média → RMS dinâmico → MQTT
 ```
 
-- **`limiar_min` de vibração** (ex: `0,05 g`): valor abaixo do qual o compressor é considerado parado.
-- **`limiar_min` de temperatura** (ex: `35°C`): confirma operação ativa por via térmica, útil como segundo critério.
-- Os dois critérios podem ser combinados com lógica `OU` para maior robustez.
+> **Verificação rápida:** Com o sensor em repouso sobre uma superfície estável, o RMS dinâmico deve resultar em ≈ **0 g**. Qualquer valor acima de `0,02 g` em repouso indica ruído elétrico ou vibração ambiental, e deve ser considerado no ajuste dos limiares.
 
 ---
 
-### 3. Amostragem por Hardware Timer para FFT
+### 5.2. Delegação Lógica para a Nuvem (Adafruit IO)
 
-**O problema:** A biblioteca `arduinoFFT` é viável no ESP32 (processador Xtensa dual-core), mas a Transformada de Fourier **exige frequência de amostragem (fs) estritamente constante**. Ler o MPU6050 dentro do `loop()` com `delay()` introduz _jitter_ — variações no tempo entre as leituras — causado pelo tempo de execução do código e pelas tarefas da pilha Wi-Fi/MQTT. Um fs variável destrói os bins de frequência, gerando vazamento espectral (_spectral leakage_) e tornando os resultados da FFT não confiáveis.
+Todo o processamento de "Gate de Estado" (identificar se o compressor está ligado ou desligado) foi **transferido para a Adafruit IO**.
 
-**A solução — Interrupção por Hardware Timer:**
+O ESP32 **não toma decisões**. Ele publica a Temperatura e a Vibração a cada 10 segundos. Na plataforma Adafruit, configuram-se as **Actions (Gatilhos)** com lógica simples:
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│  Hardware Timer (ESP32)  →  ISR dispara a fs fixo (ex: 1000 Hz)  │
-│  ├── Lê MPU6050 via I2C                                          │
-│  └── Armazena amostra em buffer circular (512 ou 1024 pontos)    │
-│                                                                  │
-│  loop() principal                                                │
-│  ├── Monitora flag "buffer cheio"                                │
-│  ├── Executa FFT (arduinoFFT) na cópia do buffer                 │
-│  ├── Identifica frequência dominante e amplitude                 │
-│  └── Publica resultado via MQTT                                  │
-└──────────────────────────────────────────────────────────────────┘
-```
+- **Regra de Alerta Híbrida:** `SE Temperatura > 35°C` _(indica compressor ativo)_ **E** `Vibração RMS > Limiar_Crítico` por mais de **5 minutos** `ENTÃO` dispara e-mail de manutenção.
 
-**Parâmetros de referência:**
+Essa delegação oferece três vantagens práticas:
 
-| Parâmetro                  | Valor recomendado    | Justificativa                                                       |
-| -------------------------- | -------------------- | ------------------------------------------------------------------- |
-| `fs` (freq. de amostragem) | 1000 Hz              | Cobre vibrações mecânicas até 500 Hz pelo critério de Nyquist       |
-| Tamanho do buffer (N)      | 512 ou 1024 amostras | Potência de 2 — obrigatório para o algoritmo FFT (Cooley-Tukey)     |
-| Resolução de frequência    | fs / N = ~1–2 Hz     | Suficiente para distinguir frequências de compressores e exaustores |
-
-> **Regra prática:** O tamanho do buffer deve ser sempre uma **potência de 2** (256, 512, 1024…). Nunca use `delay()` para controlar o tempo de amostragem quando a FFT estiver envolvida.
+| Vantagem                           | Detalhe                                                                            |
+| ---------------------------------- | ---------------------------------------------------------------------------------- |
+| **Menor complexidade de firmware** | Sem variáveis globais de estado nem lógica condicional no microcontrolador         |
+| **Ajuste sem reprogramação**       | Os limiares de alerta são editados direto no painel da Adafruit IO, pelo navegador |
+| **Menor uso de memória no ESP32**  | A RAM economizada pode ser usada pelo buffer de amostras e pela pilha MQTT/Wi-Fi   |
 
 ---
 
@@ -187,66 +144,66 @@ Antes de alimentar a baseline histórica ou avaliar qualquer regra de severidade
 
 ### Feeds Adafruit IO
 
-| Feed                   | Descrição                                   | Unidade  | Frequência       |
-| ---------------------- | ------------------------------------------- | -------- | ---------------- |
-| `calisto-temp`         | Temperatura do condensador/tubulação        | °C       | A cada 10s       |
-| `calisto-vib-x`        | RMS dinâmico de aceleração no eixo X        | g        | A cada 10s       |
-| `calisto-vib-y`        | RMS dinâmico de aceleração no eixo Y        | g        | A cada 10s       |
-| `calisto-vib-z`        | RMS dinâmico de aceleração no eixo Z        | g        | A cada 10s       |
-| `calisto-vib-fft-peak` | Frequência dominante identificada pela FFT  | Hz       | A cada ciclo FFT |
-| `calisto-status`       | Status da conexão (1 = Online, 0 = Offline) | Booleano | A cada 30s       |
+| Feed             | Descrição                                   | Unidade  | Frequência |
+| ---------------- | ------------------------------------------- | -------- | ---------- |
+| `calisto-temp`   | Temperatura do condensador/tubulação        | °C       | A cada 10s |
+| `calisto-vib-x`  | RMS dinâmico de aceleração no eixo X        | g        | A cada 10s |
+| `calisto-vib-y`  | RMS dinâmico de aceleração no eixo Y        | g        | A cada 10s |
+| `calisto-vib-z`  | RMS dinâmico de aceleração no eixo Z        | g        | A cada 10s |
+| `calisto-status` | Status da conexão (1 = Online, 0 = Offline) | Booleano | A cada 30s |
 
-> **Importante:** Os feeds `calisto-vib-*` publicam o **RMS dinâmico** (componente AC, sem gravidade), conforme descrito na Seção 5.1. Os alertas abaixo só são avaliados quando o **gate de estado** confirmar o compressor ativo (Seção 5.2).
+> **Nota:** O feed `calisto-vib-fft-peak` foi removido nesta versão MVP. A análise por FFT poderá ser reintroduzida em uma iteração futura do projeto.
 
 ### Regras de Alerta (Actions)
 
 Utilizando os recursos de automação da **Adafruit IO** (**RF05**):
 
-- 🌡️ **Alerta Térmico:** Disparo de e-mail automático se `calisto-temp` superar o limiar crítico (ex: `> 80°C` na descarga do compressor) por mais de **2 minutos consecutivos** — **somente quando o gate de estado indicar compressor ativo**.
-- ⚠️ **Alerta de Vibração:** Disparo de e-mail se o RMS dinâmico apresentar picos consistentes **fora do desvio padrão operacional da baseline**, indicando desbalanceamento do exaustor ou soltura mecânica — **somente quando o gate de estado indicar compressor ativo**.
-- 📡 **Alerta de Frequência Anômala:** Disparo de e-mail se `calisto-vib-fft-peak` apresentar desvio relevante da frequência fundamental esperada do compressor, podendo indicar desgaste de rolamentos ou desbalanceamento.
+- 🌡️ **Alerta Térmico Isolado:** Disparo de e-mail automático se `calisto-temp` superar o limiar crítico (ex: `> 80°C` na descarga do compressor) por mais de **2 minutos consecutivos**.
+- ⚠️ **Alerta de Vibração Anômala (Regra Híbrida):** Disparo de e-mail se `calisto-temp > 35°C` **E** RMS dinâmico superar o limiar operacional por mais de **5 minutos** — garantindo que o alerta só ocorra com o compressor ativo.
+- 📡 **Alerta de Conectividade:** Disparo de e-mail se `calisto-status` não receber publicação por mais de **5 minutos**, indicando perda de conexão do dispositivo.
 
 ---
 
-## Planejamento de Execução
+## Planejamento de Execução (Foco em Implantação Rápida)
+
+O ciclo de desenvolvimento foi reduzido para **três fases**, eliminando portais de configuração (Captive Portal) em favor de credenciais Wi-Fi fixas (_hardcoded_) nesta versão inicial.
 
 ```
-Fase 1              Fase 2              Fase 3              Fase 4
-  │                   │                   │                   │
-  ▼                   ▼                   ▼                   ▼
-Prototipagem     Integração Cloud    Implantação Física   Captive Portal
-(Bench Test)                            (NPITI)            (WiFiManager)
+Fase 1 (Semanas 1-2)       Fase 2 (Semanas 3-4)       Fase 3 (Semanas 5-6)
+       │                          │                          │
+       ▼                          ▼                          ▼
+ Prototipagem Básica        Integração Cloud         Implantação Física
+    (Bench Test)             (Adafruit IO)            (Condensador NPITI)
 ```
 
-### Fase 1 — Prototipagem (Bench Test)
+---
 
-- Montagem do hardware em protoboard
-- Codificação inicial no **PlatformIO**
-- Calibração dos sensores (MPU6050 e MAX6675) via monitor serial
-- Validação do **RMS dinâmico** com remoção de DC: comparar leitura estática (deve resultar em ≈ 0 g) com vibração induzida manualmente
-- Validação da **amostragem por Hardware Timer**: confirmar fs constante medindo intervalo entre interrupções via osciloscópio ou GPIO toggle
+### Fase 1 — Prototipagem Básica (Bench Test)
 
-### Fase 2 — Integração Cloud
+- Montagem do ESP32, MPU9250 e MAX6675 em protoboard.
+- Desenvolvimento do código sequencial simples (`loop` padrão, sem interrupções de hardware).
+- Implementação do algoritmo de **RMS Dinâmico** e verificação via Monitor Serial.
+    - Critério de aprovação: sensor em repouso deve ler **≈ 0 g**.
+- Inserção fixa (_hardcoded_) do SSID e Senha da rede Wi-Fi do laboratório no código.
 
-- Configuração dos dashboards na Adafruit IO (incluindo feed de pico FFT)
-- Programação da pilha MQTT no ESP32
-- Implementação e teste do **gate de estado** (compressor ligado/desligado)
-- Definição empírica dos limiares `limiar_min` de vibração e temperatura
-- Validação do tráfego de rede
+---
 
-### Fase 3 — Implantação Física
+### Fase 2 — Integração Cloud e Lógica de Alertas
 
-- Acondicionamento da eletrônica em **case IP65** (resistente a intempéries)
-- Fixação não destrutiva no condensador do NPITI
-- Fixação do Termopar na tubulação alvo
-- Coleta da **baseline de 7 dias** com gate de estado ativo para garantir que apenas ciclos de compressor ativo alimentem o histórico
+- Criação dos **Feeds** na Adafruit IO (Temperatura e Eixos de Vibração).
+- Implementação do **cliente MQTT** no ESP32 para publicação a cada 10 segundos.
+- Criação dos **Dashboards** para visualização em tempo real.
+- Configuração das **Actions (Gatilhos de E-mail)** na nuvem, combinando limiares de temperatura e vibração simulados na bancada.
+- Definição empírica dos valores de `Limiar_Crítico` de vibração com base nas leituras coletadas em bancada.
 
-### Fase 4 — Portal de Configuração (Captive Portal)
+---
 
-- Implementação da biblioteca **WiFiManager**
-- Em caso de perda de acesso à rede (ex: troca de senha), o ESP32 levanta a rede **`Calisto-Config`**
-- A equipe de manutenção insere novas credenciais via **navegador de smartphone**
-- Sem necessidade de reprogramação por cabo
+### Fase 3 — Implantação Física (NPITI)
+
+- Acondicionamento da eletrônica em **case IP65** (resistente a intempéries).
+- Fixação rígida do acelerômetro na carcaça do condensador (via ímã de neodímio ou fita dupla-face acrílica industrial) e do Termopar na tubulação de descarga.
+- **Monitoramento passivo** durante os primeiros dias para identificar os valores normais de operação.
+- Refinamento dos limiares de alerta diretamente no painel da **Adafruit IO**, sem necessidade de reprogramação do dispositivo.
 
 ---
 
