@@ -1,0 +1,13 @@
+{
+    "folders": [
+		{
+			"name": "calisto-iot",
+			"path": "."
+		},
+		{
+			"name": "calisto",
+			"path": "../../../../Desktop/VsProjetos/calisto"
+		}
+	],
+    "settings": {}
+}
