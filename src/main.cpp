@@ -2,6 +2,12 @@
  * PROJETO CALISTO - MVP (Nó de Telemetria)
  * Sistema de Monitoramento Preditivo de Condensadores
  * Instituição: UFRN / IMD - Local: NPITI
+ * 
+ * Sensores:
+ *   - Vibração: MPU9250_asukiaaa (acelerômetro 9-eixos I2C)
+ *   - Temperatura: MAX6675 + Termopar Tipo K (SPI)
+ * 
+ * Conectividade: Wi-Fi → MQTT → Adafruit IO
  */
 
 #include <Arduino.h>
