@@ -24,4 +24,5 @@
 // ==========================================
 #define NUM_AMOSTRAS      100    // Tamanho da janela para o RMS Dinâmico
 #define DELAY_AMOSTRA     2      // ms entre leituras (Janela total = ~200ms)
-#define PUBLISH_INTERVAL  10000  // Publica a cada 10 segundos
+#define PUBLISH_INTERVAL         20000  // Publica telemetria a cada 20 segundos
+#define STATUS_PUBLISH_INTERVAL  60000  // Publica heartbeat/status a cada 60 segundos

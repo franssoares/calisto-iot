@@ -13,6 +13,8 @@ String feed_vib_y  = String(IO_USERNAME) + "/feeds/calisto-vib-y";
 String feed_vib_z  = String(IO_USERNAME) + "/feeds/calisto-vib-z";
 String feed_status = String(IO_USERNAME) + "/feeds/calisto-status";
 
+unsigned long lastStatusPublish = 0;
+
 void setupNetwork() {
   Serial.printf("[WIFI] Conectando a %s ", WIFI_SSID);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -44,11 +46,21 @@ void keepNetworkAlive() {
 }
 
 void publishData(float temp, float rmsX, float rmsY, float rmsZ) {
-  client.publish(feed_temp.c_str(), String(temp, 2).c_str());
-  client.publish(feed_vib_x.c_str(), String(rmsX, 4).c_str());
-  client.publish(feed_vib_y.c_str(), String(rmsY, 4).c_str());
-  client.publish(feed_vib_z.c_str(), String(rmsZ, 4).c_str());
-  client.publish(feed_status.c_str(), "1"); 
+  bool ok = true;
+  ok &= client.publish(feed_temp.c_str(), String(temp, 2).c_str());
+  ok &= client.publish(feed_vib_x.c_str(), String(rmsX, 4).c_str());
+  ok &= client.publish(feed_vib_y.c_str(), String(rmsY, 4).c_str());
+  ok &= client.publish(feed_vib_z.c_str(), String(rmsZ, 4).c_str());
+
+  unsigned long now = millis();
+  if (lastStatusPublish == 0 || now - lastStatusPublish >= STATUS_PUBLISH_INTERVAL) {
+    ok &= client.publish(feed_status.c_str(), "1");
+    lastStatusPublish = now;
+  }
   
-  Serial.println("[OK] Dados publicados na nuvem.");
+  if (ok) {
+    Serial.println("[OK] Dados publicados na nuvem.");
+  } else {
+    Serial.println("[ERRO] Falha ao publicar um ou mais feeds.");
+  }
 }

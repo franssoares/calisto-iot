@@ -126,7 +126,7 @@ Leituras brutas (I2C) → Buffer de 100 amostras → Subtração da média → R
 
 Todo o processamento de "Gate de Estado" (identificar se o compressor está ligado ou desligado) foi **transferido para a Adafruit IO**.
 
-O ESP32 **não toma decisões**. Ele publica a Temperatura e a Vibração a cada 10 segundos. Na plataforma Adafruit, configuram-se as **Actions (Gatilhos)** com lógica simples:
+O ESP32 **não toma decisões**. Ele publica a Temperatura e a Vibração a cada 20 segundos, mantendo margem abaixo do limite de taxa do Adafruit IO. Na plataforma Adafruit, configuram-se as **Actions (Gatilhos)** com lógica simples:
 
 - **Regra de Alerta Híbrida:** `SE Temperatura > 35°C` _(indica compressor ativo)_ **E** `Vibração RMS > Limiar_Crítico` por mais de **5 minutos** `ENTÃO` dispara e-mail de manutenção.
 
@@ -146,13 +146,30 @@ Essa delegação oferece três vantagens práticas:
 
 | Feed             | Descrição                                   | Unidade  | Frequência |
 | ---------------- | ------------------------------------------- | -------- | ---------- |
-| `calisto-temp`   | Temperatura do condensador/tubulação        | °C       | A cada 10s |
-| `calisto-vib-x`  | RMS dinâmico de aceleração no eixo X        | g        | A cada 10s |
-| `calisto-vib-y`  | RMS dinâmico de aceleração no eixo Y        | g        | A cada 10s |
-| `calisto-vib-z`  | RMS dinâmico de aceleração no eixo Z        | g        | A cada 10s |
-| `calisto-status` | Status da conexão (1 = Online, 0 = Offline) | Booleano | A cada 30s |
+| `calisto-temp`   | Temperatura do condensador/tubulação        | °C       | A cada 20s |
+| `calisto-vib-x`  | RMS dinâmico de aceleração no eixo X        | g        | A cada 20s |
+| `calisto-vib-y`  | RMS dinâmico de aceleração no eixo Y        | g        | A cada 20s |
+| `calisto-vib-z`  | RMS dinâmico de aceleração no eixo Z        | g        | A cada 20s |
+| `calisto-status` | Status da conexão (1 = Online, 0 = Offline) | Booleano | A cada 60s |
 
 > **Nota:** O feed `calisto-vib-fft-peak` foi removido nesta versão MVP. A análise por FFT poderá ser reintroduzida em uma iteração futura do projeto.
+
+### Simulação sem ESP32
+
+Para testar os feeds, dashboards e Actions do Adafruit IO sem sensores ou ESP32, edite `IO_USERNAME` e `IO_KEY` no topo de `scripts/simulate_esp32.py` e execute o simulador MQTT:
+
+```powershell
+python scripts/simulate_esp32.py
+```
+
+Modos disponíveis:
+
+```powershell
+python scripts/simulate_esp32.py --mode normal
+python scripts/simulate_esp32.py --mode off
+python scripts/simulate_esp32.py --mode alert
+python scripts/simulate_esp32.py --once
+```
 
 ### Regras de Alerta (Actions)
 
@@ -191,7 +208,7 @@ Fase 1 (Semanas 1-2)       Fase 2 (Semanas 3-4)       Fase 3 (Semanas 5-6)
 ### Fase 2 — Integração Cloud e Lógica de Alertas
 
 - Criação dos **Feeds** na Adafruit IO (Temperatura e Eixos de Vibração).
-- Implementação do **cliente MQTT** no ESP32 para publicação a cada 10 segundos.
+- Implementação do **cliente MQTT** no ESP32 para publicação de telemetria a cada 20 segundos.
 - Criação dos **Dashboards** para visualização em tempo real.
 - Configuração das **Actions (Gatilhos de E-mail)** na nuvem, combinando limiares de temperatura e vibração simulados na bancada.
 - Definição empírica dos valores de `Limiar_Crítico` de vibração com base nas leituras coletadas em bancada.
