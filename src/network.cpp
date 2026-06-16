@@ -45,9 +45,14 @@ void keepNetworkAlive() {
 
 void publishData(float temp, float rmsX, float rmsY, float rmsZ) {
   client.publish(feed_temp.c_str(), String(temp, 2).c_str());
+  delay(1000);
   client.publish(feed_vib_x.c_str(), String(rmsX, 4).c_str());
+  delay(1000);
   client.publish(feed_vib_y.c_str(), String(rmsY, 4).c_str());
+  delay(1000);
   client.publish(feed_vib_z.c_str(), String(rmsZ, 4).c_str());
+  delay(1000);
+  
   client.publish(feed_status.c_str(), "1"); 
   
   Serial.println("[OK] Dados publicados na nuvem.");

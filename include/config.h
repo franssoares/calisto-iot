@@ -3,8 +3,8 @@
 // ==========================================
 // REDE E NUVEM (ADAFRUIT IO)
 // ==========================================
-#define WIFI_SSID     "NPITI-IoT"
-#define WIFI_PASSWORD "SENHA_DA_REDE"
+#define WIFI_SSID     "NOME_DO_WIFI"
+#define WIFI_PASSWORD "SENHA_DO_WIFI"
 
 #define MQTT_SERVER   "io.adafruit.com"
 #define MQTT_PORT     1883
@@ -24,4 +24,4 @@
 // ==========================================
 #define NUM_AMOSTRAS      100    // Tamanho da janela para o RMS Dinâmico
 #define DELAY_AMOSTRA     2      // ms entre leituras (Janela total = ~200ms)
-#define PUBLISH_INTERVAL  10000  // Publica a cada 10 segundos
+#define PUBLISH_INTERVAL  20000  // Publica a cada 10 segundos
